@@ -37,6 +37,7 @@ OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <trac_ik/trac_ik.hpp>
 #include <trac_ik/trac_ik_kinematics_plugin.hpp>
 #include <limits>
+#include <moveit/robot_state/robot_state.h>
 #include "trac_ik_kinematics_parameters.hpp"
 
 namespace trac_ik_kinematics_plugin
@@ -137,6 +138,8 @@ bool TRAC_IKKinematicsPlugin::initialize(const rclcpp::Node::SharedPtr &node,
   position_ik_ = params_->position_only_ik;
   solve_type = params_->solve_type;
   RCLCPP_INFO(LOGGER, "Using solve type %s", solve_type.c_str());
+
+  rng_ = std::make_shared<random_numbers::RandomNumberGenerator>();
 
   active_ = true;
   return true;
@@ -358,47 +361,56 @@ bool TRAC_IKKinematicsPlugin::searchPositionIK(const geometry_msgs::msg::Pose &i
     solvetype = TRAC_IK::Speed;
   }
 
-  TRAC_IK::TRAC_IK ik_solver(node_, chain, joint_min, joint_max, timeout, params_->epsilon, solvetype);
-
-  int rc = ik_solver.CartToJnt(in, frame, out, bounds);
-
-  // If you want to retrieve all the returned solutions, the (commented) code below does it
-  // Note that you have to call getSolutions() AFTER a successful code to CartToJnt to get all the solutions generated
-  // CartToJnt returns only one solution, but more could have been generated
-  // usually, Speed returns 1 solution.  The other modes return more
-  // rc is the number of solutions obtained
-  /*
-  if(rc > 0)
+  auto end_time = std::chrono::system_clock::now() + std::chrono::duration<double>(timeout);
+  while (std::chrono::system_clock::now() < end_time)
   {
-    std::vector<KDL::JntArray> sols;
-    bool res = ik_solver.getSolutions(sols);
-    RCLCPP_WARN(LOGGER, "Generated %u solutions, retrieved %lu solutions ", rc, sols.size());
-  }*/
+    double solver_timeout = std::chrono::duration<double>(end_time - std::chrono::system_clock::now()).count();
+    TRAC_IK::TRAC_IK ik_solver(node_, chain, joint_min, joint_max, solver_timeout, params_->epsilon, solvetype);
 
-  solution.resize(num_joints_);
+    int rc = ik_solver.CartToJnt(in, frame, out, bounds);
 
-  if (rc >= 0)
-  {
-    for (uint z = 0; z < num_joints_; z++)
-      solution[z] = out(z);
-
-    // check for collisions if a callback is provided
-    if (solution_callback)
+    // If you want to retrieve all the returned solutions, the (commented) code below does it
+    // Note that you have to call getSolutions() AFTER a successful code to CartToJnt to get all the solutions generated
+    // CartToJnt returns only one solution, but more could have been generated
+    // usually, Speed returns 1 solution.  The other modes return more
+    // rc is the number of solutions obtained
+    /*
+    if(rc > 0)
     {
-      solution_callback(ik_pose, solution, error_code);
-      if (error_code.val == moveit_msgs::msg::MoveItErrorCodes::SUCCESS)
+      std::vector<KDL::JntArray> sols;
+      bool res = ik_solver.getSolutions(sols);
+      RCLCPP_WARN(LOGGER, "Generated %u solutions, retrieved %lu solutions ", rc, sols.size());
+    }*/
+
+    solution.resize(num_joints_);
+
+    if (rc >= 0)
+    {
+      for (uint z = 0; z < num_joints_; z++)
+        solution[z] = out(z);
+
+      // check for collisions if a callback is provided
+      if (solution_callback)
       {
-        RCLCPP_DEBUG_STREAM(LOGGER, "Solution passes callback");
-        return true;
+        solution_callback(ik_pose, solution, error_code);
+        if (error_code.val == moveit_msgs::msg::MoveItErrorCodes::SUCCESS)
+        {
+          RCLCPP_DEBUG_STREAM(LOGGER, "Solution passes callback");
+          return true;
+        }
+        else
+        {
+          RCLCPP_DEBUG_STREAM(LOGGER, "Solution has error code " << error_code.val);
+          std::vector<double> random_state(ik_seed_state);
+          robot_model_->getVariableRandomPositions(*rng_, random_state);
+          for (uint z = 0; z < num_joints_; z++)
+            in(z) = random_state[z];
+          RCLCPP_DEBUG_STREAM(LOGGER, "Retrying with new seed");
+        }
       }
       else
-      {
-        RCLCPP_DEBUG_STREAM(LOGGER, "Solution has error code " << error_code.val);
-        return false;
-      }
+        return true; // no collision check callback provided
     }
-    else
-      return true; // no collision check callback provided
   }
 
   error_code.val = moveit_msgs::msg::MoveItErrorCodes::NO_IK_SOLUTION;

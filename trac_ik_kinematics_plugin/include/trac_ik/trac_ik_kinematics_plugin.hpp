@@ -203,6 +203,8 @@ private:
   std::shared_ptr<trac_ik_kinematics::ParamListener> param_listener_;
   std::shared_ptr<trac_ik_kinematics::Params> params_;
 
+  std::shared_ptr<random_numbers::RandomNumberGenerator> rng_;
+
 }; // end class
 }
 
