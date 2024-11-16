@@ -49,7 +49,7 @@ class TRAC_IK
 public:
   TRAC_IK(const KDL::Chain& _chain, const KDL::JntArray& _q_min, const KDL::JntArray& _q_max, double _maxtime = 0.005, double _eps = 1e-5, SolveType _type = Speed);
 
-  TRAC_IK(const std::string& base_link, const std::string& tip_link, const std::string& URDF_param = "/robot_description", double _maxtime = 0.005, double _eps = 1e-5, SolveType _type = Speed);
+  TRAC_IK(const std::string& base_link, const std::string& tip_link, const std::string& mjcf_filename, double _maxtime = 0.005, double _eps = 1e-5, SolveType _type = Speed);
 
   ~TRAC_IK();
 
@@ -100,6 +100,8 @@ public:
   }
 
   int CartToJnt(const KDL::JntArray &q_init, const KDL::Frame &p_in, KDL::JntArray &q_out, const KDL::Twist& bounds = KDL::Twist::Zero());
+
+  KDL::Frame JntToCart(const KDL::JntArray &q_in) const;
 
   inline void SetSolveType(SolveType _type)
   {
