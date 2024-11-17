@@ -29,56 +29,48 @@ OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************/
 
 
+#include <mujoco/mjmodel.h>
 #include <trac_ik/trac_ik.hpp>
 #include <boost/date_time.hpp>
 #include <Eigen/Geometry>
-#include <ros/ros.h>
 #include <limits>
-#include <kdl_parser/kdl_parser.hpp>
-#include <urdf/model.h>
+#include <spdlog/spdlog.h>
+#include <mujoco/mujoco.h>
+#include <kdl/tree.hpp>
+#include <trac_ik/mjcf_parser.hpp>
+#include <spdlog/cfg/env.h>
 
 namespace TRAC_IK
 {
 
-TRAC_IK::TRAC_IK(const std::string& base_link, const std::string& tip_link, const std::string& URDF_param, double _maxtime, double _eps, SolveType _type) :
+TRAC_IK::TRAC_IK(const std::string& base_link, const std::string& tip_link, const std::string& mjcf_filename, double _maxtime, double _eps, SolveType _type) :
   initialized(false),
   eps(_eps),
   maxtime(_maxtime),
   solvetype(_type)
 {
 
-  ros::NodeHandle node_handle("~");
-
-  urdf::Model robot_model;
-  std::string xml_string;
-
-  std::string urdf_xml, full_urdf_xml;
-  node_handle.param("urdf_xml", urdf_xml, URDF_param);
-  node_handle.searchParam(urdf_xml, full_urdf_xml);
-
-  ROS_DEBUG_NAMED("trac_ik", "Reading xml file from parameter server");
-  if (!node_handle.getParam(full_urdf_xml, xml_string))
+  spdlog::cfg::load_env_levels();
+  mjModel* model = mj_loadXML(mjcf_filename.c_str(), nullptr, nullptr, 0);
+  if(!model)
   {
-    ROS_FATAL_NAMED("trac_ik", "Could not load the xml from parameter server: %s", urdf_xml.c_str());
-    return;
+    spdlog::error("Failed to load mjcf model from {}", mjcf_filename);
   }
 
-  node_handle.param(full_urdf_xml, xml_string, std::string());
-  robot_model.initString(xml_string);
-
-  ROS_DEBUG_STREAM_NAMED("trac_ik", "Reading joints and links from URDF");
+  spdlog::debug("Reading joints and links from {}", mjcf_filename);
 
   KDL::Tree tree;
 
-  if (!kdl_parser::treeFromUrdfModel(robot_model, tree))
-    ROS_FATAL("Failed to extract kdl tree from xml robot description");
+  if(!mjcf_parser::treeFromMjcfModel(model, tree))
+  {
+    spdlog::error("Failed to extract kdl tree from mjcf model");
+    return;
+  }
 
   if (!tree.getChain(base_link, tip_link, chain))
-    ROS_FATAL("Couldn't find chain %s to %s", base_link.c_str(), tip_link.c_str());
+    spdlog::error("Couldn't find chain {} to {}", base_link, tip_link);
 
-  std::vector<KDL::Segment> chain_segs = chain.segments;
-
-  urdf::JointConstSharedPtr joint;
+  const auto& chain_segs = chain.segments;
 
   std::vector<double> l_bounds, u_bounds;
 
@@ -88,24 +80,17 @@ TRAC_IK::TRAC_IK(const std::string& base_link, const std::string& tip_link, cons
   uint joint_num = 0;
   for (unsigned int i = 0; i < chain_segs.size(); ++i)
   {
-    joint = robot_model.getJoint(chain_segs[i].getJoint().getName());
-    if (joint->type != urdf::Joint::UNKNOWN && joint->type != urdf::Joint::FIXED)
+    const auto joint_name = chain_segs[i].getJoint().getName();
+    const auto joint_id = mj_name2id(model, mjOBJ_JOINT, joint_name.c_str());
+    if (model->jnt_type[joint_id] == mjtJoint::mjJNT_SLIDE || model->jnt_type[joint_id] == mjtJoint::mjJNT_HINGE)
     {
       joint_num++;
       float lower, upper;
       int hasLimits;
-      if (joint->type != urdf::Joint::CONTINUOUS)
+      if (model->jnt_limited[joint_id])
       {
-        if (joint->safety)
-        {
-          lower = std::max(joint->limits->lower, joint->safety->soft_lower_limit);
-          upper = std::min(joint->limits->upper, joint->safety->soft_upper_limit);
-        }
-        else
-        {
-          lower = joint->limits->lower;
-          upper = joint->limits->upper;
-        }
+        lower = model->jnt_range[2 * joint_id];
+        upper = model->jnt_range[2 * joint_id + 1];
         hasLimits = 1;
       }
       else
@@ -122,11 +107,12 @@ TRAC_IK::TRAC_IK(const std::string& base_link, const std::string& tip_link, cons
         lb(joint_num - 1) = std::numeric_limits<float>::lowest();
         ub(joint_num - 1) = std::numeric_limits<float>::max();
       }
-      ROS_DEBUG_STREAM_NAMED("trac_ik", "IK Using joint " << joint->name << " " << lb(joint_num - 1) << " " << ub(joint_num - 1));
+      spdlog::debug("IK Using joint {} {} {}", joint_name, lb(joint_num - 1), ub(joint_num - 1));
     }
   }
 
   initialize();
+  mj_deleteModel(model);
 }
 
 
@@ -417,7 +403,7 @@ int TRAC_IK::CartToJnt(const KDL::JntArray &q_init, const KDL::Frame &p_in, KDL:
 
   if (!initialized)
   {
-    ROS_ERROR("TRAC-IK was not properly initialized with a valid chain or limits.  IK cannot proceed");
+    spdlog::error("TRAC-IK was not properly initialized with a valid chain or limits.  IK cannot proceed");
     return -1;
   }
 
@@ -468,4 +454,10 @@ TRAC_IK::~TRAC_IK()
   if (task2.joinable())
     task2.join();
 }
+
+KDL::Frame TRAC_IK::JntToCart(const KDL::JntArray &q_in) const {
+  KDL::Frame p_out;
+  nl_solver->fksolver.JntToCart(q_in, p_out);
+  return p_out;
 }
+} // namespace TRAC_IK
