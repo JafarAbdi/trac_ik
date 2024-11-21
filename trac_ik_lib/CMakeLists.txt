@@ -21,13 +21,15 @@ find_package(NLopt REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(orocos_kdl REQUIRED)
+find_package(urdfdom REQUIRED)
 
 add_library(trac_ik
   SHARED
   src/kdl_tl.cpp
   src/nlopt_ik.cpp
   src/trac_ik.cpp
-  src/mjcf_parser.cpp)
+  src/mjcf_parser.cpp
+  src/kdl_parser.cpp)
 target_link_libraries(trac_ik
   PUBLIC
   Eigen3::Eigen
@@ -35,6 +37,8 @@ target_link_libraries(trac_ik
   Boost::date_time
   spdlog::spdlog
   orocos-kdl
+  urdfdom::urdf_parser
+  urdfdom::urdfdom_model
   ${MUJOCO_LIB})
 target_compile_features(trac_ik PRIVATE cxx_std_20)
 target_include_directories(trac_ik

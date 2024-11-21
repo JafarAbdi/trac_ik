@@ -38,6 +38,8 @@ OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <mujoco/mujoco.h>
 #include <kdl/tree.hpp>
 #include <trac_ik/mjcf_parser.hpp>
+#include <trac_ik/kdl_parser.hpp>
+#include <urdf_parser/urdf_parser.h>
 #include <spdlog/cfg/env.h>
 
 namespace TRAC_IK
@@ -51,13 +53,42 @@ TRAC_IK::TRAC_IK(const std::string& base_link, const std::string& tip_link, cons
 {
 
   spdlog::cfg::load_env_levels();
-  mjModel* model = mj_loadXML(mjcf_filename.c_str(), nullptr, nullptr, 0);
-  if(!model)
-  {
-    spdlog::error("Failed to load mjcf model from {}", mjcf_filename);
+
+  if (mjcf_filename.ends_with(".xml")) {
+    spdlog::info("Loading mjcf file {}", mjcf_filename);
+    initialize_mjcf(base_link, tip_link, mjcf_filename);
+  } else if (mjcf_filename.ends_with(".urdf")) {
+    spdlog::info("Loading urdf file {}", mjcf_filename);
+    initialize_urdf(base_link, tip_link, mjcf_filename);
+  } else {
+    spdlog::error("File format not supported");
   }
 
-  spdlog::debug("Reading joints and links from {}", mjcf_filename);
+  initialize();
+}
+
+
+TRAC_IK::TRAC_IK(const KDL::Chain& _chain, const KDL::JntArray& _q_min, const KDL::JntArray& _q_max, double _maxtime, double _eps, SolveType _type):
+  initialized(false),
+  chain(_chain),
+  lb(_q_min),
+  ub(_q_max),
+  eps(_eps),
+  maxtime(_maxtime),
+  solvetype(_type)
+{
+  initialize();
+}
+
+void TRAC_IK::initialize_mjcf(const std::string& base_link, const std::string& tip_link, const std::string& filename) {
+
+  mjModel* model = mj_loadXML(filename.c_str(), nullptr, nullptr, 0);
+  if(!model)
+  {
+    spdlog::error("Failed to load mjcf model from {}", filename);
+  }
+
+  spdlog::debug("Reading joints and links from {}", filename);
 
   KDL::Tree tree;
 
@@ -72,15 +103,16 @@ TRAC_IK::TRAC_IK(const std::string& base_link, const std::string& tip_link, cons
 
   const auto& chain_segs = chain.segments;
 
-  std::vector<double> l_bounds, u_bounds;
+  std::vector<double> l_bounds;
+  std::vector<double> u_bounds;
 
   lb.resize(chain.getNrOfJoints());
   ub.resize(chain.getNrOfJoints());
 
   uint joint_num = 0;
-  for (unsigned int i = 0; i < chain_segs.size(); ++i)
+  for (const auto& chain_seg : chain_segs)
   {
-    const auto joint_name = chain_segs[i].getJoint().getName();
+    const auto joint_name = chain_seg.getJoint().getName();
     const auto joint_id = mj_name2id(model, mjOBJ_JOINT, joint_name.c_str());
     if (model->jnt_type[joint_id] == mjtJoint::mjJNT_SLIDE || model->jnt_type[joint_id] == mjtJoint::mjJNT_HINGE)
     {
@@ -110,23 +142,74 @@ TRAC_IK::TRAC_IK(const std::string& base_link, const std::string& tip_link, cons
       spdlog::debug("IK Using joint {} {} {}", joint_name, lb(joint_num - 1), ub(joint_num - 1));
     }
   }
-
-  initialize();
   mj_deleteModel(model);
 }
 
+void TRAC_IK::initialize_urdf(const std::string& base_link, const std::string& tip_link, const std::string& filename) {
 
-TRAC_IK::TRAC_IK(const KDL::Chain& _chain, const KDL::JntArray& _q_min, const KDL::JntArray& _q_max, double _maxtime, double _eps, SolveType _type):
-  initialized(false),
-  chain(_chain),
-  lb(_q_min),
-  ub(_q_max),
-  eps(_eps),
-  maxtime(_maxtime),
-  solvetype(_type)
-{
-  initialize();
+  const urdf::ModelInterfaceSharedPtr robot_model = urdf::parseURDFFile(filename);
+
+  spdlog::debug("Reading joints and links from URDF");
+
+  KDL::Tree tree;
+
+  if (!kdl_parser::treeFromUrdfModel(*robot_model, tree))
+    spdlog::error("Failed to extract kdl tree from urdf file {}", filename);
+
+  if (!tree.getChain(base_link, tip_link, chain))
+    spdlog::error("Couldn't find chain {} to {}", base_link, tip_link);
+
+  std::vector<KDL::Segment> chain_segs = chain.segments;
+
+  urdf::JointConstSharedPtr joint;
+
+  std::vector<double> l_bounds, u_bounds;
+
+  lb.resize(chain.getNrOfJoints());
+  ub.resize(chain.getNrOfJoints());
+
+  uint joint_num = 0;
+  for (unsigned int i = 0; i < chain_segs.size(); ++i)
+  {
+    joint = robot_model->getJoint(chain_segs[i].getJoint().getName());
+    if (joint->type != urdf::Joint::UNKNOWN && joint->type != urdf::Joint::FIXED)
+    {
+      joint_num++;
+      float lower, upper;
+      int hasLimits;
+      if (joint->type != urdf::Joint::CONTINUOUS)
+      {
+        if (joint->safety)
+        {
+          lower = std::max(joint->limits->lower, joint->safety->soft_lower_limit);
+          upper = std::min(joint->limits->upper, joint->safety->soft_upper_limit);
+        }
+        else
+        {
+          lower = joint->limits->lower;
+          upper = joint->limits->upper;
+        }
+        hasLimits = 1;
+      }
+      else
+      {
+        hasLimits = 0;
+      }
+      if (hasLimits)
+      {
+        lb(joint_num - 1) = lower;
+        ub(joint_num - 1) = upper;
+      }
+      else
+      {
+        lb(joint_num - 1) = std::numeric_limits<float>::lowest();
+        ub(joint_num - 1) = std::numeric_limits<float>::max();
+      }
+      spdlog::debug("IK Using joint {} {} {}", joint->name, lb(joint_num - 1), ub(joint_num - 1));
+    }
+  }
 }
+
 
 void TRAC_IK::initialize()
 {
