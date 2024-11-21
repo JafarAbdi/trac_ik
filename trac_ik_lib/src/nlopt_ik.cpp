@@ -32,7 +32,6 @@ OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <spdlog/spdlog.h>
 #include <trac_ik/nlopt_ik.hpp>
 #include <limits>
-#include <boost/date_time.hpp>
 #include <trac_ik/dual_quaternion.h>
 #include <cmath>
 
@@ -457,8 +456,8 @@ int NLOPT_IK::CartToJnt(const KDL::JntArray &q_init, const KDL::Frame &p_in, KDL
   // Returns -3 if a configuration could not be found within the eps
   // set up in the constructor.
 
-  boost::posix_time::ptime start_time = boost::posix_time::microsec_clock::local_time();
-  boost::posix_time::time_duration diff;
+  auto start_time = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> diff;
 
   bounds = _bounds;
   q_out = q_init;
@@ -593,8 +592,8 @@ int NLOPT_IK::CartToJnt(const KDL::JntArray &q_init, const KDL::Frame &p_in, KDL
   {
 
     double time_left;
-    diff = boost::posix_time::microsec_clock::local_time() - start_time;
-    time_left = maxtime - diff.total_nanoseconds() / 1000000000.0;
+    diff = std::chrono::high_resolution_clock::now() - start_time;
+    time_left = maxtime - diff.count();
 
     while (time_left > 0 && !aborted && progress < 0)
     {
@@ -613,8 +612,8 @@ int NLOPT_IK::CartToJnt(const KDL::JntArray &q_init, const KDL::Frame &p_in, KDL
       if (progress == -1) // Got NaNs
         progress = -3;
 
-      diff = boost::posix_time::microsec_clock::local_time() - start_time;
-      time_left = maxtime - diff.total_nanoseconds() / 1000000000.0;
+      diff = std::chrono::high_resolution_clock::now() - start_time;
+      time_left = maxtime - diff.count();
     }
   }
 

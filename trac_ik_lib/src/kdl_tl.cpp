@@ -29,8 +29,8 @@ OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************/
 
 #include <trac_ik/kdl_tl.hpp>
-#include <boost/date_time.hpp>
 #include <limits>
+#include <chrono>
 
 namespace KDL
 {
@@ -70,8 +70,8 @@ int ChainIkSolverPos_TL::CartToJnt(const KDL::JntArray &q_init, const KDL::Frame
   if (aborted)
     return -3;
 
-  boost::posix_time::ptime start_time = boost::posix_time::microsec_clock::local_time();
-  boost::posix_time::time_duration timediff;
+  auto start_time = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> timediff;
   q_out = q_init;
   bounds = _bounds;
 
@@ -184,8 +184,8 @@ int ChainIkSolverPos_TL::CartToJnt(const KDL::JntArray &q_init, const KDL::Frame
 
     q_out = q_curr;
 
-    timediff = boost::posix_time::microsec_clock::local_time() - start_time;
-    time_left = maxtime - timediff.total_nanoseconds() / 1000000000.0;
+    timediff = std::chrono::high_resolution_clock::now() - start_time;
+    time_left = maxtime - timediff.count();
   }
   while (time_left > 0 && !aborted);
 

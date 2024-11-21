@@ -16,7 +16,6 @@ endif()
 
 find_package(Python REQUIRED COMPONENTS Interpreter Development)
 find_package(pybind11 CONFIG)
-find_package(Boost REQUIRED COMPONENTS date_time)
 find_package(NLopt REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(spdlog REQUIRED)
@@ -34,7 +33,6 @@ target_link_libraries(trac_ik
   PUBLIC
   Eigen3::Eigen
   NLopt::nlopt
-  Boost::date_time
   spdlog::spdlog
   orocos-kdl
   urdfdom::urdf_parser
