@@ -44,7 +44,7 @@ OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace TRAC_IK
 {
 
-TRAC_IK::TRAC_IK(const std::string& base_link, const std::string& tip_link, const std::string& mjcf_filename, double _maxtime, double _eps, SolveType _type) :
+TRAC_IK::TRAC_IK(const std::string& base_link, const std::string& tip_link, const std::string& filename, double _maxtime, double _eps, SolveType _type) :
   initialized(false),
   eps(_eps),
   maxtime(_maxtime),
@@ -53,14 +53,14 @@ TRAC_IK::TRAC_IK(const std::string& base_link, const std::string& tip_link, cons
 
   spdlog::cfg::load_env_levels();
 
-  if (mjcf_filename.ends_with(".xml")) {
-    spdlog::info("Loading mjcf file {}", mjcf_filename);
-    initialize_mjcf(base_link, tip_link, mjcf_filename);
-  } else if (mjcf_filename.ends_with(".urdf")) {
-    spdlog::info("Loading urdf file {}", mjcf_filename);
-    initialize_urdf(base_link, tip_link, mjcf_filename);
+  if (filename.ends_with(".xml")) {
+    spdlog::info("Loading mjcf file {}", filename);
+    initialize_mjcf(base_link, tip_link, filename);
+  } else if (filename.ends_with(".urdf")) {
+    spdlog::info("Loading urdf file {}", filename);
+    initialize_urdf(base_link, tip_link, filename);
   } else {
-    spdlog::error("File format not supported");
+    spdlog::error("File format not supported: '{}'", filename);
   }
 
   initialize();
