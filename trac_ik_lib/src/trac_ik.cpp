@@ -81,10 +81,12 @@ TRAC_IK::TRAC_IK(const KDL::Chain& _chain, const KDL::JntArray& _q_min, const KD
 
 void TRAC_IK::initialize_mjcf(const std::string& base_link, const std::string& tip_link, const std::string& filename) {
 
-  mjModel* model = mj_loadXML(filename.c_str(), nullptr, nullptr, 0);
+  std::array<char, 1024> error_msg;
+  mjModel* model = mj_loadXML(filename.c_str(), nullptr, error_msg.data(), error_msg.size());
   if(!model)
   {
-    spdlog::error("Failed to load mjcf model from {}", filename);
+    spdlog::error("Failed to load mjcf model from {}\n{}", filename,
+                  std::string_view(error_msg.data(), error_msg.size()));
   }
 
   spdlog::debug("Reading joints and links from {}", filename);
