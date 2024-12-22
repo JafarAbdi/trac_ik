@@ -54,10 +54,10 @@ TRAC_IK::TRAC_IK(const std::string& base_link, const std::string& tip_link, cons
   spdlog::cfg::load_env_levels();
 
   if (filename.ends_with(".xml")) {
-    spdlog::info("Loading mjcf file {}", filename);
+    spdlog::debug("Loading mjcf file {}", filename);
     initialize_mjcf(base_link, tip_link, filename);
   } else if (filename.ends_with(".urdf")) {
-    spdlog::info("Loading urdf file {}", filename);
+    spdlog::debug("Loading urdf file {}", filename);
     initialize_urdf(base_link, tip_link, filename);
   } else {
     spdlog::error("File format not supported: '{}'", filename);
