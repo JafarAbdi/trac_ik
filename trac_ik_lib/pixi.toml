@@ -25,9 +25,9 @@ urdfdom = ">=4.0.1,<5"
 [run-dependencies]
 python = ">=3.11, <3.12"
 
-[build-system]
+[package.build]
 
-build-backend = { name = "pixi-build-cmake", version = "*" }
+backend = { name = "pixi-build-cmake", version = "*" }
 
 channels = [
   "https://prefix.dev/pixi-build-backends",
