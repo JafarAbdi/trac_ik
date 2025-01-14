@@ -12,7 +12,19 @@ version = "0.1.0"
 [dependencies]
 trac_ik = { path = "." }
 
-[host-dependencies]
+[package.build]
+
+backend = { name = "pixi-build-cmake", version = "*" }
+
+channels = [
+  "https://prefix.dev/pixi-build-backends",
+  "https://prefix.dev/conda-forge",
+]
+
+[package.run-dependencies]
+python = ">=3.11, <3.12"
+
+[package.host-dependencies]
 pybind11 = ">=2.13.6,<3"
 python_abi = ">=3.11, <3.12"
 nlopt = ">=2.9.0,<3"
@@ -22,17 +34,6 @@ spdlog = ">=1.15.0,<2"
 range-v3 = ">=0.12.0,<0.13"
 urdfdom = ">=4.0.1,<5"
 
-[run-dependencies]
-python = ">=3.11, <3.12"
-
-[package.build]
-
-backend = { name = "pixi-build-cmake", version = "*" }
-
-channels = [
-  "https://prefix.dev/pixi-build-backends",
-  "https://prefix.dev/conda-forge",
-]
 
 [tasks]
 configure = { cmd = [
@@ -46,4 +47,4 @@ configure = { cmd = [
   ".build/",
 ] }
 
-build = { cmd = ["cmake", "--build", ".build/"], depends_on = ["configure"] }
+build = { cmd = ["cmake", "--build", ".build/"], depends-on = ["configure"] }
