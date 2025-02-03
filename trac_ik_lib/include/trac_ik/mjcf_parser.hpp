@@ -16,26 +16,16 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-struct JointInfo {
-  int id;                       // Joint ID in mjModel
-  std::string name;             // Joint name
-  mjtJoint type;                // Joint type (mjtJoint)
-  bool limited;                 // Joint is limited
-  std::array<mjtNum, 2> range;  // Joint limits
-  std::array<mjtNum, 3> axis;   // Joint axis
-  std::array<mjtNum, 3> pos;
-};
-
-struct BodyNode {
-  int id;                      // Body ID in mjModel
-  std::string name;            // Body name
-  int parent_id;               // Parent body ID
-  std::vector<int> child_ids;  // Child body IDs
-  std::array<mjtNum, 3> pos;   // Position relative to parent
-  std::array<mjtNum, 4> quat;  // Orientation relative to parent
-  std::optional<JointInfo> joint;
-};
+//
+// struct JointInfo {
+//   int id;                       // Joint ID in mjModel
+//   std::string name;             // Joint name
+//   mjtJoint type;                // Joint type (mjtJoint)
+//   bool limited;                 // Joint is limited
+//   std::array<mjtNum, 2> range;  // Joint limits
+//   std::array<mjtNum, 3> axis;   // Joint axis
+//   std::array<mjtNum, 3> pos;
+// };
 
 template <>
 struct fmt::formatter<mjtJoint> : formatter<std::string_view> {
@@ -61,15 +51,8 @@ KDL::Rotation mjToKdl(const double* mjQuat);
 
 KDL::Frame mjToKdl(const double* mjPos, const double* mjQuat);
 
-std::vector<BodyNode> buildTree(const mjModel* model);
-
 // construct joint
-KDL::Joint toKdl(const JointInfo& joint);
-
-void addSegment(KDL::Tree& tree, const BodyNode& root, const std::string& parent_name, const KDL::Joint& joint);
-
-// recursive function to walk through tree
-bool addChildrenToTree(const BodyNode& root, const std::vector<BodyNode>& kinematics_tree, KDL::Tree& tree);
+KDL::Joint toKdl(const std::string& joint_name, const mjtJoint joint_type, const mjtNum* mj_pos, const mjtNum* mj_axis);
 
 bool treeFromMjcfModel(const mjModel* model, KDL::Tree& tree);
 

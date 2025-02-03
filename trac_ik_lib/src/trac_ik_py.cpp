@@ -17,6 +17,28 @@ PYBIND11_MODULE(trac_ik_py, m) {
       .value("Manip2", TRAC_IK::SolveType::Manip2);
   py::class_<TRAC_IK::TRAC_IK>(m, "TRAC_IK")
       .def(py::init<const std::string&, const std::string&, const std::string&, double, double, TRAC_IK::SolveType>())
+      .def(py::init([](const std::string& base_link,
+                       const std::string& tip_link,
+                       py::object model,
+                       double maxtime,
+                       double eps,
+                       TRAC_IK::SolveType type) {
+        if (mjVERSION_HEADER != mj_version()) {
+          throw std::runtime_error(
+              fmt::format("MuJoCo library and header mismatch! mjVERSION_HEADER: {} mj_version(): {}",
+                          mjVERSION_HEADER,
+                          mj_version()));
+        }
+        std::uintptr_t m_raw = model.attr("_address").cast<std::uintptr_t>();
+        const mjModel* mj_model = reinterpret_cast<const mjModel*>(m_raw);
+        return std::make_unique<TRAC_IK::TRAC_IK>(base_link, tip_link, mj_model, maxtime, eps, type);
+      }))
+      .def("getNrOfSegments",
+           [](TRAC_IK::TRAC_IK& self) {
+             KDL::Chain chain;
+             self.getKDLChain(chain);
+             return chain.getNrOfSegments();
+           })
       .def("CartToJnt",
            [](TRAC_IK::TRAC_IK& self,
               const std::vector<double>& q_init,
@@ -97,15 +119,38 @@ PYBIND11_MODULE(trac_ik_py, m) {
              }
              return ub_vec;
            })
-      .def("JntToCart", [](TRAC_IK::TRAC_IK& self, const std::vector<double>& q) {
+      .def("JntToCart",
+           [](TRAC_IK::TRAC_IK& self, const std::vector<double>& q) {
+             KDL::JntArray in(q.size());
+             for (uint z = 0; z < q.size(); z++) in(z) = q[z];
+             const auto frame = self.JntToCart(in);
+             double rw;
+             double rx;
+             double ry;
+             double rz;
+             frame.M.GetQuaternion(rx, ry, rz, rw);
+             return std::array<double, 7>{frame.p.x(), frame.p.y(), frame.p.z(), rw, rx, ry, rz};
+           })
+      .def("JntToCartFrames", [](TRAC_IK::TRAC_IK& self, const std::vector<double>& q) {
         KDL::JntArray in(q.size());
         for (uint z = 0; z < q.size(); z++) in(z) = q[z];
-        const auto frame = self.JntToCart(in);
-        double rw;
-        double rx;
-        double ry;
-        double rz;
-        frame.M.GetQuaternion(rx, ry, rz, rw);
-        return std::array<double, 7>{frame.p.x(), frame.p.y(), frame.p.z(), rw, rx, ry, rz};
+        const auto frames = self.JntToCartFrames(in);
+        std::vector<std::tuple<std::string, std::string, std::array<double, 7>>> out(frames.size());
+        out.reserve(frames.size());
+        KDL::Chain chain;
+        self.getKDLChain(chain);
+        for (size_t i = 0; i < frames.size(); i++) {
+          double rw;
+          double rx;
+          double ry;
+          double rz;
+          const auto& frame = frames[i];
+          frame.M.GetQuaternion(rx, ry, rz, rw);
+          const auto& segment = chain.getSegment(i);
+          out.emplace_back(segment.getName(),
+                           segment.getJoint().getName(),
+                           std::experimental::make_array(frame.p.x(), frame.p.y(), frame.p.z(), rw, rx, ry, rz));
+        }
+        return out;
       });
 }

@@ -4,7 +4,7 @@ project(trac_ik_lib)
 include(GNUInstallDirs)
 
 include(FetchContent)
-set(MUJOCO_VERSION "3.2.5")
+set(MUJOCO_VERSION "3.2.7")
 
 set(FETCHCONTENT_QUIET OFF)
 # Download and extract MuJoCo

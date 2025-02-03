@@ -66,6 +66,17 @@ TRAC_IK::TRAC_IK(const std::string& base_link, const std::string& tip_link, cons
   initialize();
 }
 
+TRAC_IK::TRAC_IK(const std::string& base_link, const std::string& tip_link, const mjModel* model, double _maxtime, double _eps, SolveType _type) :
+  initialized(false),
+  eps(_eps),
+  maxtime(_maxtime),
+  solvetype(_type)
+{
+  spdlog::cfg::load_env_levels();
+  initialize_mjcf(base_link, tip_link, model);
+  initialize();
+}
+
 
 TRAC_IK::TRAC_IK(const KDL::Chain& _chain, const KDL::JntArray& _q_min, const KDL::JntArray& _q_max, double _maxtime, double _eps, SolveType _type):
   initialized(false),
@@ -90,7 +101,11 @@ void TRAC_IK::initialize_mjcf(const std::string& base_link, const std::string& t
   }
 
   spdlog::debug("Reading joints and links from {}", filename);
+  initialize_mjcf(base_link, tip_link, model);
+  mj_deleteModel(model);
+}
 
+void TRAC_IK::initialize_mjcf(const std::string& base_link, const std::string& tip_link, const mjModel* model) {
   KDL::Tree tree;
 
   if(!mjcf_parser::treeFromMjcfModel(model, tree))
@@ -143,7 +158,6 @@ void TRAC_IK::initialize_mjcf(const std::string& base_link, const std::string& t
       spdlog::debug("IK Using joint {} {} {}", joint_name, lb(joint_num - 1), ub(joint_num - 1));
     }
   }
-  mj_deleteModel(model);
 }
 
 void TRAC_IK::initialize_urdf(const std::string& base_link, const std::string& tip_link, const std::string& filename) {
@@ -541,6 +555,12 @@ TRAC_IK::~TRAC_IK()
 
 KDL::Frame TRAC_IK::JntToCart(const KDL::JntArray &q_in) const {
   KDL::Frame p_out;
+  nl_solver->fksolver.JntToCart(q_in, p_out);
+  return p_out;
+}
+
+std::vector<KDL::Frame> TRAC_IK::JntToCartFrames(const KDL::JntArray &q_in) const {
+  std::vector<KDL::Frame> p_out(nl_solver->chain.getNrOfSegments());
   nl_solver->fksolver.JntToCart(q_in, p_out);
   return p_out;
 }
