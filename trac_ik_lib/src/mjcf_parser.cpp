@@ -34,14 +34,9 @@ bool mjcf_parser::treeFromMjcfModel(const mjModel* model, KDL::Tree& tree) {
     if (number_of_joints > 1) {
       spdlog::warn("Body '{}' has {} joints. Only the first joint will be considered.", body_name, number_of_joints);
     }
-    // spdlog::info(
-    //     "pos: {} - quat: {}", std::span(&model->body_pos[body_id], 3), std::span(&model->body_quat[body_id], 4));
+    const auto frame = mjToKdl(&model->body_pos[3 * body_id], &model->body_quat[4 * body_id]);
     if (number_of_joints == 0) {
-      // spdlog::info("{} -> {}", parent_body_name, body_name);
-      if (!tree.addSegment(KDL::Segment(body_name,
-                                        KDL::Joint(KDL::Joint::Fixed),
-                                        mjToKdl(&model->body_pos[body_id], &model->body_quat[body_id])),
-                           parent_body_name)) {
+      if (!tree.addSegment(KDL::Segment(body_name, KDL::Joint(KDL::Joint::Fixed), frame), parent_body_name)) {
         spdlog::error("Failed to add segment '{}' to tree with parent '{}'.", body_name, parent_body_name);
         return false;
       }
@@ -52,24 +47,15 @@ bool mjcf_parser::treeFromMjcfModel(const mjModel* model, KDL::Tree& tree) {
                                mjtJoint(model->jnt_type[joint_id]),
                                &model->jnt_pos[3 * joint_id],
                                &model->jnt_axis[3 * joint_id]);
-      // spdlog::info(
-      //     "Joint: axis={} pos{}", std::span(&model->jnt_axis[joint_id], 3), std::span(&model->jnt_pos[joint_id], 3));
-      spdlog::info("Joint: {} {}", joint.pose(0).p.data, joint.pose(0).M.data);
-      // spdlog::info("{} -> {} -> {}", parent_body_name, joint_name, body_name);
-      // spdlog::info("Joint pos: {}", std::span(&model->jnt_pos[body_id], 3));
-      const auto frame = mjToKdl(&model->body_pos[body_id], &model->body_quat[body_id]);
-      auto segment = KDL::Segment(body_name, joint, mjToKdl(&model->body_pos[body_id], &model->body_quat[body_id]));
-      spdlog::info("Add segment with tip at {} and rotation {} to tree with parent '{}'.",
-                   segment.getFrameToTip().p.data,
-                   segment.getFrameToTip().M.data,
-                   parent_body_name);
+      spdlog::info("{} -> {} -> {}", parent_body_name, joint_name, body_name);
+      auto segment = KDL::Segment(body_name, joint, frame);
       if (!tree.addSegment(segment, parent_body_name)) {
         spdlog::error("Failed to add segment '{}' with joint '{}'.", body_name, joint_name);
         return false;
       }
     }
   }
-  print_tree_element(tree.getRootSegment()->second);
+  // print_tree_element(tree.getRootSegment()->second);
   return true;
 }
 
@@ -79,7 +65,6 @@ KDL::Joint mjcf_parser::toKdl(const std::string& joint_name,
                               const mjtNum* mj_axis) {
   const auto origin = KDL::Vector(mj_pos[0], mj_pos[1], mj_pos[2]);
   const auto axis = KDL::Vector(mj_axis[0], mj_axis[1], mj_axis[2]);
-  spdlog::info("Joint {} with origin {} and axis {}.", joint_name, origin.data, axis.data);
   if (joint_type == mjtJoint::mjJNT_HINGE) {
     return KDL::Joint(joint_name, origin, axis, KDL::Joint::RotAxis);
   }
