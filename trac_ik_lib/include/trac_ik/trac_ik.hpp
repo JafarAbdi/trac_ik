@@ -37,6 +37,7 @@ OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <thread>
 #include <mutex>
 #include <memory>
+#include <mujoco/mjmodel.h>
 
 namespace TRAC_IK
 {
@@ -49,9 +50,11 @@ public:
   TRAC_IK(const KDL::Chain& _chain, const KDL::JntArray& _q_min, const KDL::JntArray& _q_max, double _maxtime = 0.005, double _eps = 1e-5, SolveType _type = Speed);
 
   TRAC_IK(const std::string& base_link, const std::string& tip_link, const std::string& filename, double _maxtime = 0.005, double _eps = 1e-5, SolveType _type = Speed);
+  TRAC_IK(const std::string& base_link, const std::string& tip_link, const mjModel* model, double _maxtime = 0.005, double _eps = 1e-5, SolveType _type = Speed);
 
   ~TRAC_IK();
 
+  void initialize_mjcf(const std::string& base_link, const std::string& tip_link, const mjModel* model);
   void initialize_mjcf(const std::string& base_link, const std::string& tip_link, const std::string& filename);
   void initialize_urdf(const std::string& base_link, const std::string& tip_link, const std::string& filename);
 
@@ -104,6 +107,7 @@ public:
   int CartToJnt(const KDL::JntArray &q_init, const KDL::Frame &p_in, KDL::JntArray &q_out, const KDL::Twist& bounds = KDL::Twist::Zero());
 
   KDL::Frame JntToCart(const KDL::JntArray &q_in) const;
+  std::vector<KDL::Frame> JntToCartFrames(const KDL::JntArray &q_in) const;
 
   inline void SetSolveType(SolveType _type)
   {
