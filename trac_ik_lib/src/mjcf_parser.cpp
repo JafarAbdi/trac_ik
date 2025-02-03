@@ -4,10 +4,11 @@
 #include <trac_ik/mjcf_parser.hpp>
 void print_tree_element(const KDL::TreeElement& tree_element) {
   const auto& segment = tree_element.segment;
-  spdlog::info("Segment '{}' with joint '{}' at origin {} and tip at {} with rotation {}",
+  spdlog::info("Segment '{}' with joint '{}' at origin {} & axis {} and tip at {} with rotation {}",
                segment.getName(),
                segment.getJoint().getName(),
                segment.getJoint().JointOrigin().data,
+               segment.getJoint().JointAxis().data,
                segment.getFrameToTip().p.data,
                segment.getFrameToTip().M.data);
   spdlog::info("Segment '{}' has {} children.", segment.getName(), tree_element.children.size());
@@ -28,31 +29,32 @@ bool mjcf_parser::treeFromMjcfModel(const mjModel* model, KDL::Tree& tree) {
   spdlog::info("Added segment '{}' to tree with parent '{}'.", root_name, "root");
   for (int body_id = 1; body_id < model->nbody; body_id++) {
     const auto parent_id = model->body_parentid[body_id];
-    const std::string parent_body_name = mj_id2name(model, mjtObj::mjOBJ_BODY, parent_id);
-    const std::string body_name = mj_id2name(model, mjtObj::mjOBJ_BODY, body_id);
-    const auto number_of_joints = model->body_jntnum[body_id];
+    const auto parent_body_name = mj_id2name(model, mjtObj::mjOBJ_BODY, parent_id);
+    const auto body_name = mj_id2name(model, mjtObj::mjOBJ_BODY, body_id);
+    const auto number_of_joints = model->body_jntnum[parent_id];
+    const auto joint_id = model->body_jntadr[parent_id];
+    spdlog::info("body_id: {} - parent_id: {} - joint_id: {} - joint's body_id: {}",
+                 body_id,
+                 parent_id,
+                 joint_id,
+                 model->jnt_bodyid[joint_id]);
     if (number_of_joints > 1) {
       spdlog::warn("Body '{}' has {} joints. Only the first joint will be considered.", body_name, number_of_joints);
     }
     const auto frame = mjToKdl(&model->body_pos[3 * body_id], &model->body_quat[4 * body_id]);
-    if (number_of_joints == 0) {
-      if (!tree.addSegment(KDL::Segment(body_name, KDL::Joint(KDL::Joint::Fixed), frame), parent_body_name)) {
-        spdlog::error("Failed to add segment '{}' to tree with parent '{}'.", body_name, parent_body_name);
-        return false;
-      }
-    } else {
-      const auto joint_id = model->body_jntadr[body_id];
+    auto joint = KDL::Joint(KDL::Joint::Fixed);
+    if (number_of_joints != 0) {
       const auto joint_name = mj_id2name(model, mjtObj::mjOBJ_JOINT, joint_id);
-      const auto joint = toKdl(joint_name,
-                               mjtJoint(model->jnt_type[joint_id]),
-                               &model->jnt_pos[3 * joint_id],
-                               &model->jnt_axis[3 * joint_id]);
-      spdlog::info("{} -> {} -> {}", parent_body_name, joint_name, body_name);
-      auto segment = KDL::Segment(body_name, joint, frame);
-      if (!tree.addSegment(segment, parent_body_name)) {
-        spdlog::error("Failed to add segment '{}' with joint '{}'.", body_name, joint_name);
-        return false;
-      }
+      joint = toKdl(joint_name,
+                    mjtJoint(model->jnt_type[joint_id]),
+                    &model->jnt_pos[3 * joint_id],
+                    &model->jnt_axis[3 * joint_id]);
+    }
+    spdlog::info("{} -> {} -> {}", parent_body_name, joint.getName(), body_name);
+    auto segment = KDL::Segment(body_name, joint, frame);
+    if (!tree.addSegment(segment, parent_body_name)) {
+      spdlog::error("Failed to add segment '{}' with joint '{}'.", body_name, joint.getName());
+      return false;
     }
   }
   // print_tree_element(tree.getRootSegment()->second);

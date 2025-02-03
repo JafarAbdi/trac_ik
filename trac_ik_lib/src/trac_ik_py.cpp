@@ -1,6 +1,7 @@
 #include <pybind11/eigen.h>
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
+#include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
 
 #include <memory>
@@ -43,7 +44,7 @@ PYBIND11_MODULE(trac_ik_py, m) {
            [](TRAC_IK::TRAC_IK& self,
               const std::vector<double>& q_init,
               const std::array<double, 7>& pose,
-              const std::array<double, 6>& bounds = {}) {
+              const std::array<double, 6>& bounds = {}) -> py::object {
              // pose Uses mujoco convention x y z rw rx ry rz
              // bounds x y z rx ry rz
              const auto frame = mjcf_parser::mjToKdl(pose.data(), pose.data() + 3);
@@ -61,11 +62,9 @@ PYBIND11_MODULE(trac_ik_py, m) {
              int rc = self.CartToJnt(in, frame, out, kdl_bounds);
              std::vector<double> vout;
              // If no solution, return empty vector which acts as None
-             if (rc == -3) return vout;
+             if (rc == -3) return py::none();
 
-             for (uint z = 0; z < q_init.size(); z++) vout.push_back(out(z));
-
-             return vout;
+             return py::cast(out.data);
            })
       .def("getNrOfJointsInChain",
            [](TRAC_IK::TRAC_IK& self) {
