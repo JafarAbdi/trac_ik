@@ -33,11 +33,6 @@ bool mjcf_parser::treeFromMjcfModel(const mjModel* model, KDL::Tree& tree) {
     const auto body_name = mj_id2name(model, mjtObj::mjOBJ_BODY, body_id);
     const auto number_of_joints = model->body_jntnum[parent_id];
     const auto joint_id = model->body_jntadr[parent_id];
-    spdlog::info("body_id: {} - parent_id: {} - joint_id: {} - joint's body_id: {}",
-                 body_id,
-                 parent_id,
-                 joint_id,
-                 model->jnt_bodyid[joint_id]);
     if (number_of_joints > 1) {
       spdlog::warn("Body '{}' has {} joints. Only the first joint will be considered.", body_name, number_of_joints);
     }
@@ -50,14 +45,14 @@ bool mjcf_parser::treeFromMjcfModel(const mjModel* model, KDL::Tree& tree) {
                     &model->jnt_pos[3 * joint_id],
                     &model->jnt_axis[3 * joint_id]);
     }
-    spdlog::info("{} -> {} -> {}", parent_body_name, joint.getName(), body_name);
+    // spdlog::info("{} -> {} -> {}", parent_body_name, joint.getName(), body_name);
     auto segment = KDL::Segment(body_name, joint, frame);
     if (!tree.addSegment(segment, parent_body_name)) {
       spdlog::error("Failed to add segment '{}' with joint '{}'.", body_name, joint.getName());
       return false;
     }
   }
-  // print_tree_element(tree.getRootSegment()->second);
+  print_tree_element(tree.getRootSegment()->second);
   return true;
 }
 

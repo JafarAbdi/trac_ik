@@ -138,7 +138,7 @@ PYBIND11_MODULE(trac_ik_py, m) {
         out.reserve(frames.size());
         KDL::Chain chain;
         self.getKDLChain(chain);
-        for (size_t i = 0; i < frames.size(); i++) {
+        for (size_t i = 0; i < chain.getNrOfSegments(); i++) {
           double rw;
           double rx;
           double ry;

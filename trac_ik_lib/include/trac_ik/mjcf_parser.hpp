@@ -17,16 +17,6 @@
 #include <unordered_map>
 #include <vector>
 //
-// struct JointInfo {
-//   int id;                       // Joint ID in mjModel
-//   std::string name;             // Joint name
-//   mjtJoint type;                // Joint type (mjtJoint)
-//   bool limited;                 // Joint is limited
-//   std::array<mjtNum, 2> range;  // Joint limits
-//   std::array<mjtNum, 3> axis;   // Joint axis
-//   std::array<mjtNum, 3> pos;
-// };
-
 template <>
 struct fmt::formatter<mjtJoint> : formatter<std::string_view> {
   auto format(const mjtJoint& joint_type, fmt::format_context& ctx) const -> fmt::format_context::iterator {
