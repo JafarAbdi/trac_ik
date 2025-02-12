@@ -41,7 +41,7 @@ python = ">=3.11, <3.12"
 
 [package.host-dependencies]
 pybind11 = ">=2.13.6,<3"
-python_abi = ">=3.11, <3.12"
+python = ">=3.11, <3.12"
 nlopt = ">=2.9.0,<3"
 eigen = ">=3.4.0,<4"
 orocos-kdl = ">=1.5.1,<2"
