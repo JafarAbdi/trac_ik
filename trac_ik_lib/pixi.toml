@@ -9,22 +9,22 @@ preview = ["pixi-build"]
 name = "trac_ik"
 version = "0.1.0"
 
-# [dependencies]
-# trac_ik = { path = "." }
 [dependencies]
-ninja = ">=1.12.1,<2"
-cmake = ">=3.30.5,<4"
-lld = ">=19.1.2,<20"
-clangxx = ">=19.1.7,<20"
-
-pybind11 = ">=2.13.6,<3"
-python = ">=3.11, <3.12"
-nlopt = ">=2.9.0,<3"
-eigen = ">=3.4.0,<4"
-orocos-kdl = ">=1.5.1,<2"
-spdlog = ">=1.15.0,<2"
-range-v3 = ">=0.12.0,<0.13"
-urdfdom = ">=4.0.1,<5"
+trac_ik = { path = "." }
+# [dependencies]
+# ninja = ">=1.12.1,<2"
+# cmake = ">=3.30.5,<4"
+# lld = ">=19.1.2,<20"
+# clangxx = ">=19.1.7,<20"
+#
+# pybind11 = ">=2.13.6,<3"
+# python = ">=3.11, <3.12"
+# nlopt = ">=2.9.0,<3"
+# eigen = ">=3.4.0,<4"
+# orocos-kdl = ">=1.5.1,<2"
+# spdlog = ">=1.15.0,<2"
+# range-v3 = ">=0.12.0,<0.13"
+# urdfdom = ">=4.0.1,<5"
 
 
 [package.build]
@@ -42,6 +42,7 @@ python = ">=3.11, <3.12"
 [package.host-dependencies]
 pybind11 = ">=2.13.6,<3"
 python = ">=3.11, <3.12"
+python_abi = ">=3.11, <3.12"
 nlopt = ">=2.9.0,<3"
 eigen = ">=3.4.0,<4"
 orocos-kdl = ">=1.5.1,<2"
