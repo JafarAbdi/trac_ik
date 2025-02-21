@@ -23,6 +23,20 @@ set_target_properties(
              INTERFACE_INCLUDE_DIRECTORIES "${mujoco_SOURCE_DIR}/include"
              IMPORTED_NO_SONAME TRUE)
 
+# Find Python interpreter and development components
+execute_process(COMMAND "which python3" OUTPUT_VARIABLE PYTHON_EXECUTABLE)
+if(NOT PYTHON_EXECUTABLE)
+  message(FATAL_ERROR "Python interpreter not found.")
+endif()
+
+# Check for Python development headers and libraries
+include(CheckCXXSymbolExists)
+set(CMAKE_REQUIRED_INCLUDES ${Python_INCLUDE_DIRS})
+check_cxx_symbol_exists(Py_Initialize Python.h PYTHON_DEVELOPMENT_FOUND)
+if(NOT PYTHON_DEVELOPMENT_FOUND)
+  message(FATAL_ERROR "Python development components not found.")
+endif()
+
 find_package(Python REQUIRED COMPONENTS Interpreter Development)
 find_package(pybind11 CONFIG)
 find_package(NLopt REQUIRED)
