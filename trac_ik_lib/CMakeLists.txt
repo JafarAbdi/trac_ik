@@ -33,16 +33,14 @@ set(PYTHON_EXECUTABLE "${PYTHON_BIN_DIR}/python3")
 
 # --- Find Python include directory ---
 execute_process(
-  COMMAND python3 -c
-          "import sysconfig; print(sysconfig.get_path('include'))"
+  COMMAND python3 -c "import sysconfig; print(sysconfig.get_path('include'))"
   OUTPUT_VARIABLE PYTHON_INCLUDE_DIR
   OUTPUT_STRIP_TRAILING_WHITESPACE)
 set(PYTHON_INCLUDE_DIRS "${PYTHON_INCLUDE_DIR}")
 
 # --- Find Python libraries ---
 execute_process(
-  COMMAND python3 -c
-          "import sysconfig; print(sysconfig.get_path('platlib'))"
+  COMMAND python3 -c "import sysconfig; print(sysconfig.get_path('platlib'))"
   OUTPUT_VARIABLE PYTHON_LIB_DIR
   OUTPUT_STRIP_TRAILING_WHITESPACE)
 set(PYTHON_LIBRARIES "${PYTHON_LIB_DIR}")
@@ -50,6 +48,16 @@ set(PYTHON_LIBRARIES "${PYTHON_LIB_DIR}")
 message(STATUS "Python executable: ${PYTHON_EXECUTABLE}")
 message(STATUS "Python include dirs: ${PYTHON_INCLUDE_DIRS}")
 message(STATUS "Python libraries: ${PYTHON_LIBRARIES}")
+
+set(Python_EXECUTABLE
+    "${PYTHON_EXECUTABLE}"
+    CACHE PATH "Python executable")
+set(Python_INCLUDE_DIRS
+    "${PYTHON_INCLUDE_DIRS}"
+    CACHE PATH "Python include directories")
+set(Python_LIBRARIES
+    "${PYTHON_LIBRARIES}"
+    CACHE PATH "Python libraries")
 
 find_package(Python REQUIRED COMPONENTS Interpreter Development)
 find_package(pybind11 CONFIG)
