@@ -25,7 +25,7 @@ set_target_properties(
 
 # --- Find Python interpreter ---
 execute_process(
-  COMMAND pixi run -e test python3 -c
+  COMMAND python3 -c
           "import sysconfig; print(sysconfig.get_config_var('BINDIR'))"
   OUTPUT_VARIABLE PYTHON_BIN_DIR
   OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -33,7 +33,7 @@ set(PYTHON_EXECUTABLE "${PYTHON_BIN_DIR}/python3")
 
 # --- Find Python include directory ---
 execute_process(
-  COMMAND pixi run -e test python3 -c
+  COMMAND python3 -c
           "import sysconfig; print(sysconfig.get_path('include'))"
   OUTPUT_VARIABLE PYTHON_INCLUDE_DIR
   OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -41,7 +41,7 @@ set(PYTHON_INCLUDE_DIRS "${PYTHON_INCLUDE_DIR}")
 
 # --- Find Python libraries ---
 execute_process(
-  COMMAND pixi run -e test python3 -c
+  COMMAND python3 -c
           "import sysconfig; print(sysconfig.get_path('platlib'))"
   OUTPUT_VARIABLE PYTHON_LIB_DIR
   OUTPUT_STRIP_TRAILING_WHITESPACE)
