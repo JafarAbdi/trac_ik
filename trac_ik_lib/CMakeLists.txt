@@ -23,6 +23,8 @@ set_target_properties(
              INTERFACE_INCLUDE_DIRECTORIES "${mujoco_SOURCE_DIR}/include"
              IMPORTED_NO_SONAME TRUE)
 
+# Fix issue with pixi not being able to find python in github actions
+# https://github.com/JafarAbdi/ramp/actions/runs/13089849872/job/36525248434
 # --- Find Python interpreter ---
 execute_process(
   COMMAND python3 -c
