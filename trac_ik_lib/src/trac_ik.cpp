@@ -29,14 +29,11 @@ OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************/
 
 
-#include <mujoco/mjmodel.h>
 #include <trac_ik/trac_ik.hpp>
 #include <Eigen/Geometry>
 #include <limits>
 #include <spdlog/spdlog.h>
-#include <mujoco/mujoco.h>
 #include <kdl/tree.hpp>
-#include <trac_ik/mjcf_parser.hpp>
 #include <trac_ik/kdl_parser.hpp>
 #include <urdf_parser/urdf_parser.h>
 #include <spdlog/cfg/env.h>
@@ -53,10 +50,7 @@ TRAC_IK::TRAC_IK(const std::string& base_link, const std::string& tip_link, cons
 
   spdlog::cfg::load_env_levels();
 
-  if (filename.ends_with(".xml")) {
-    spdlog::debug("Loading mjcf file {}", filename);
-    initialize_mjcf(base_link, tip_link, filename);
-  } else if (filename.ends_with(".urdf")) {
+  if (filename.ends_with(".urdf")) {
     spdlog::debug("Loading urdf file {}", filename);
     initialize_urdf(base_link, tip_link, filename);
   } else {
@@ -77,73 +71,6 @@ TRAC_IK::TRAC_IK(const KDL::Chain& _chain, const KDL::JntArray& _q_min, const KD
   solvetype(_type)
 {
   initialize();
-}
-
-void TRAC_IK::initialize_mjcf(const std::string& base_link, const std::string& tip_link, const std::string& filename) {
-
-  std::array<char, 1024> error_msg;
-  mjModel* model = mj_loadXML(filename.c_str(), nullptr, error_msg.data(), error_msg.size());
-  if(!model)
-  {
-    spdlog::error("Failed to load mjcf model from {}\n{}", filename,
-                  std::string_view(error_msg.data(), error_msg.size()));
-  }
-
-  spdlog::debug("Reading joints and links from {}", filename);
-
-  KDL::Tree tree;
-
-  if(!mjcf_parser::treeFromMjcfModel(model, tree))
-  {
-    spdlog::error("Failed to extract kdl tree from mjcf model");
-    return;
-  }
-
-  if (!tree.getChain(base_link, tip_link, chain))
-    spdlog::error("Couldn't find chain {} to {}", base_link, tip_link);
-
-  const auto& chain_segs = chain.segments;
-
-  std::vector<double> l_bounds;
-  std::vector<double> u_bounds;
-
-  lb.resize(chain.getNrOfJoints());
-  ub.resize(chain.getNrOfJoints());
-
-  uint joint_num = 0;
-  for (const auto& chain_seg : chain_segs)
-  {
-    const auto joint_name = chain_seg.getJoint().getName();
-    const auto joint_id = mj_name2id(model, mjOBJ_JOINT, joint_name.c_str());
-    if (model->jnt_type[joint_id] == mjtJoint::mjJNT_SLIDE || model->jnt_type[joint_id] == mjtJoint::mjJNT_HINGE)
-    {
-      joint_num++;
-      float lower, upper;
-      int hasLimits;
-      if (model->jnt_limited[joint_id])
-      {
-        lower = model->jnt_range[2 * joint_id];
-        upper = model->jnt_range[2 * joint_id + 1];
-        hasLimits = 1;
-      }
-      else
-      {
-        hasLimits = 0;
-      }
-      if (hasLimits)
-      {
-        lb(joint_num - 1) = lower;
-        ub(joint_num - 1) = upper;
-      }
-      else
-      {
-        lb(joint_num - 1) = std::numeric_limits<float>::lowest();
-        ub(joint_num - 1) = std::numeric_limits<float>::max();
-      }
-      spdlog::debug("IK Using joint {} {} {}", joint_name, lb(joint_num - 1), ub(joint_num - 1));
-    }
-  }
-  mj_deleteModel(model);
 }
 
 void TRAC_IK::initialize_urdf(const std::string& base_link, const std::string& tip_link, const std::string& filename) {

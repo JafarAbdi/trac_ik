@@ -4,7 +4,6 @@
 #include <pybind11/stl.h>
 
 #include <memory>
-#include <trac_ik/mjcf_parser.hpp>
 #include <trac_ik/trac_ik.hpp>
 
 namespace py = pybind11;
@@ -22,13 +21,11 @@ PYBIND11_MODULE(trac_ik_py, m) {
               const std::vector<double>& q_init,
               const std::array<double, 7>& pose,
               const std::array<double, 6>& bounds = {}) {
-             // pose Uses mujoco convention x y z rw rx ry rz
-             // bounds x y z rx ry rz
-             const auto frame = mjcf_parser::mjToKdl(pose.data(), pose.data() + 3);
              KDL::JntArray in(q_init.size());
              KDL::JntArray out(q_init.size());
              for (uint z = 0; z < q_init.size(); z++) in(z) = q_init[z];
 
+             // bounds x y z rx ry rz
              KDL::Twist kdl_bounds = KDL::Twist::Zero();
              kdl_bounds.vel.x(bounds[0]);
              kdl_bounds.vel.y(bounds[1]);
@@ -36,6 +33,8 @@ PYBIND11_MODULE(trac_ik_py, m) {
              kdl_bounds.rot.x(bounds[3]);
              kdl_bounds.rot.y(bounds[4]);
              kdl_bounds.rot.z(bounds[5]);
+             const auto frame = KDL::Frame(KDL::Rotation::Quaternion(pose[3], pose[4], pose[5], pose[6]),
+                                           KDL::Vector(pose[0], pose[1], pose[2]));
              int rc = self.CartToJnt(in, frame, out, kdl_bounds);
              std::vector<double> vout;
              // If no solution, return empty vector which acts as None
@@ -101,11 +100,11 @@ PYBIND11_MODULE(trac_ik_py, m) {
         KDL::JntArray in(q.size());
         for (uint z = 0; z < q.size(); z++) in(z) = q[z];
         const auto frame = self.JntToCart(in);
-        double rw;
         double rx;
         double ry;
         double rz;
+        double rw;
         frame.M.GetQuaternion(rx, ry, rz, rw);
-        return std::array<double, 7>{frame.p.x(), frame.p.y(), frame.p.z(), rw, rx, ry, rz};
+        return std::array<double, 7>{frame.p.x(), frame.p.y(), frame.p.z(), rx, ry, rz, rw};
       });
 }

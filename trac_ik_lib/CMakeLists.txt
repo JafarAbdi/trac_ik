@@ -4,25 +4,6 @@ project(trac_ik_lib)
 include(GNUInstallDirs)
 
 include(FetchContent)
-set(MUJOCO_VERSION "3.2.5")
-
-set(FETCHCONTENT_QUIET OFF)
-# Download and extract MuJoCo
-FetchContent_Declare(
-  mujoco
-  URL "https://github.com/google-deepmind/mujoco/releases/download/${MUJOCO_VERSION}/mujoco-${MUJOCO_VERSION}-linux-x86_64.tar.gz"
-  GIT_PROGRESS TRUE)
-FetchContent_MakeAvailable(mujoco)
-add_library(mujoco::mujoco SHARED IMPORTED GLOBAL)
-
-# Set the imported location and include directories
-set_target_properties(
-  mujoco::mujoco
-  PROPERTIES IMPORTED_LOCATION
-             "${mujoco_SOURCE_DIR}/lib/libmujoco.so.${MUJOCO_VERSION}"
-             INTERFACE_INCLUDE_DIRECTORIES "${mujoco_SOURCE_DIR}/include"
-             IMPORTED_NO_SONAME TRUE)
-
 find_package(Python REQUIRED COMPONENTS Interpreter Development)
 find_package(pybind11 CONFIG)
 find_package(NLopt REQUIRED)
@@ -31,8 +12,7 @@ find_package(spdlog REQUIRED)
 find_package(orocos_kdl REQUIRED)
 find_package(urdfdom REQUIRED)
 
-add_library(trac_ik SHARED src/kdl_tl.cpp src/nlopt_ik.cpp src/trac_ik.cpp
-                           src/mjcf_parser.cpp src/kdl_parser.cpp)
+add_library(trac_ik SHARED src/kdl_tl.cpp src/nlopt_ik.cpp src/trac_ik.cpp src/kdl_parser.cpp)
 target_link_libraries(
   trac_ik
   PUBLIC Eigen3::Eigen
@@ -40,8 +20,7 @@ target_link_libraries(
          spdlog::spdlog
          orocos-kdl
          urdfdom::urdf_parser
-         urdfdom::urdfdom_model
-         mujoco::mujoco)
+         urdfdom::urdfdom_model)
 target_compile_features(trac_ik PRIVATE cxx_std_20)
 target_include_directories(
   trac_ik PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

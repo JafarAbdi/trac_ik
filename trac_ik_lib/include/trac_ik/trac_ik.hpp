@@ -52,7 +52,6 @@ public:
 
   ~TRAC_IK();
 
-  void initialize_mjcf(const std::string& base_link, const std::string& tip_link, const std::string& filename);
   void initialize_urdf(const std::string& base_link, const std::string& tip_link, const std::string& filename);
 
   bool getKDLChain(KDL::Chain& chain_)
