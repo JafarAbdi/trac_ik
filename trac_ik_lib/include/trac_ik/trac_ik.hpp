@@ -37,7 +37,7 @@ OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <thread>
 #include <mutex>
 #include <memory>
-#include <boost/date_time.hpp>
+#include <mujoco/mjmodel.h>
 
 namespace TRAC_IK
 {
@@ -49,9 +49,14 @@ class TRAC_IK
 public:
   TRAC_IK(const KDL::Chain& _chain, const KDL::JntArray& _q_min, const KDL::JntArray& _q_max, double _maxtime = 0.005, double _eps = 1e-5, SolveType _type = Speed);
 
-  TRAC_IK(const std::string& base_link, const std::string& tip_link, const std::string& URDF_param = "/robot_description", double _maxtime = 0.005, double _eps = 1e-5, SolveType _type = Speed);
+  TRAC_IK(const std::string& base_link, const std::string& tip_link, const std::string& filename, double _maxtime = 0.005, double _eps = 1e-5, SolveType _type = Speed);
+  TRAC_IK(const std::string& base_link, const std::string& tip_link, const mjModel* model, double _maxtime = 0.005, double _eps = 1e-5, SolveType _type = Speed);
 
   ~TRAC_IK();
+
+  void initialize_mjcf(const std::string& base_link, const std::string& tip_link, const mjModel* model);
+  void initialize_mjcf(const std::string& base_link, const std::string& tip_link, const std::string& filename);
+  void initialize_urdf(const std::string& base_link, const std::string& tip_link, const std::string& filename);
 
   bool getKDLChain(KDL::Chain& chain_)
   {
@@ -101,6 +106,9 @@ public:
 
   int CartToJnt(const KDL::JntArray &q_init, const KDL::Frame &p_in, KDL::JntArray &q_out, const KDL::Twist& bounds = KDL::Twist::Zero());
 
+  KDL::Frame JntToCart(const KDL::JntArray &q_in) const;
+  std::vector<KDL::Frame> JntToCartFrames(const KDL::JntArray &q_in) const;
+
   inline void SetSolveType(SolveType _type)
   {
     solvetype = _type;
@@ -118,7 +126,7 @@ private:
   std::unique_ptr<NLOPT_IK::NLOPT_IK> nl_solver;
   std::unique_ptr<KDL::ChainIkSolverPos_TL> iksolver;
 
-  boost::posix_time::ptime start_time;
+  std::chrono::time_point<std::chrono::high_resolution_clock, std::chrono::duration<double>> start_time;
 
   template<typename T1, typename T2>
   bool runSolver(T1& solver, T2& other_solver,

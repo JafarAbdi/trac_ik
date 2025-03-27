@@ -1,1 +1,6 @@
 trac_ik_python/src/trac_ik_python/trac_ik.pyc
+.build
+
+# pixi environments
+.pixi
+*.egg-info

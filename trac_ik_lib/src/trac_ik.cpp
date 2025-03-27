@@ -29,52 +29,150 @@ OF THE POSSIBILITY OF SUCH DAMAGE.
 ********************************************************************************/
 
 
+#include <mujoco/mjmodel.h>
 #include <trac_ik/trac_ik.hpp>
-#include <boost/date_time.hpp>
 #include <Eigen/Geometry>
-#include <ros/ros.h>
 #include <limits>
-#include <kdl_parser/kdl_parser.hpp>
-#include <urdf/model.h>
+#include <spdlog/spdlog.h>
+#include <mujoco/mujoco.h>
+#include <kdl/tree.hpp>
+#include <trac_ik/mjcf_parser.hpp>
+#include <trac_ik/kdl_parser.hpp>
+#include <urdf_parser/urdf_parser.h>
+#include <spdlog/cfg/env.h>
 
 namespace TRAC_IK
 {
 
-TRAC_IK::TRAC_IK(const std::string& base_link, const std::string& tip_link, const std::string& URDF_param, double _maxtime, double _eps, SolveType _type) :
+TRAC_IK::TRAC_IK(const std::string& base_link, const std::string& tip_link, const std::string& filename, double _maxtime, double _eps, SolveType _type) :
   initialized(false),
   eps(_eps),
   maxtime(_maxtime),
   solvetype(_type)
 {
 
-  ros::NodeHandle node_handle("~");
+  spdlog::cfg::load_env_levels();
 
-  urdf::Model robot_model;
-  std::string xml_string;
+  if (filename.ends_with(".xml")) {
+    spdlog::debug("Loading mjcf file {}", filename);
+    initialize_mjcf(base_link, tip_link, filename);
+  } else if (filename.ends_with(".urdf")) {
+    spdlog::debug("Loading urdf file {}", filename);
+    initialize_urdf(base_link, tip_link, filename);
+  } else {
+    spdlog::error("File format not supported: '{}'", filename);
+  }
 
-  std::string urdf_xml, full_urdf_xml;
-  node_handle.param("urdf_xml", urdf_xml, URDF_param);
-  node_handle.searchParam(urdf_xml, full_urdf_xml);
+  initialize();
+}
 
-  ROS_DEBUG_NAMED("trac_ik", "Reading xml file from parameter server");
-  if (!node_handle.getParam(full_urdf_xml, xml_string))
+TRAC_IK::TRAC_IK(const std::string& base_link, const std::string& tip_link, const mjModel* model, double _maxtime, double _eps, SolveType _type) :
+  initialized(false),
+  eps(_eps),
+  maxtime(_maxtime),
+  solvetype(_type)
+{
+  spdlog::cfg::load_env_levels();
+  initialize_mjcf(base_link, tip_link, model);
+  initialize();
+}
+
+
+TRAC_IK::TRAC_IK(const KDL::Chain& _chain, const KDL::JntArray& _q_min, const KDL::JntArray& _q_max, double _maxtime, double _eps, SolveType _type):
+  initialized(false),
+  chain(_chain),
+  lb(_q_min),
+  ub(_q_max),
+  eps(_eps),
+  maxtime(_maxtime),
+  solvetype(_type)
+{
+  initialize();
+}
+
+void TRAC_IK::initialize_mjcf(const std::string& base_link, const std::string& tip_link, const std::string& filename) {
+
+  std::array<char, 1024> error_msg;
+  mjModel* model = mj_loadXML(filename.c_str(), nullptr, error_msg.data(), error_msg.size());
+  if(!model)
   {
-    ROS_FATAL_NAMED("trac_ik", "Could not load the xml from parameter server: %s", urdf_xml.c_str());
+    spdlog::error("Failed to load mjcf model from {}\n{}", filename,
+                  std::string_view(error_msg.data(), error_msg.size()));
+  }
+
+  spdlog::debug("Reading joints and links from {}", filename);
+  initialize_mjcf(base_link, tip_link, model);
+  mj_deleteModel(model);
+}
+
+void TRAC_IK::initialize_mjcf(const std::string& base_link, const std::string& tip_link, const mjModel* model) {
+  KDL::Tree tree;
+
+  if(!mjcf_parser::treeFromMjcfModel(model, tree))
+  {
+    spdlog::error("Failed to extract kdl tree from mjcf model");
     return;
   }
 
-  node_handle.param(full_urdf_xml, xml_string, std::string());
-  robot_model.initString(xml_string);
+  if (!tree.getChain(base_link, tip_link, chain))
+    spdlog::error("Couldn't find chain {} to {}", base_link, tip_link);
 
-  ROS_DEBUG_STREAM_NAMED("trac_ik", "Reading joints and links from URDF");
+  const auto& chain_segs = chain.segments;
+
+  std::vector<double> l_bounds;
+  std::vector<double> u_bounds;
+
+  lb.resize(chain.getNrOfJoints());
+  ub.resize(chain.getNrOfJoints());
+
+  uint joint_num = 0;
+  for (const auto& chain_seg : chain_segs)
+  {
+    const auto joint_name = chain_seg.getJoint().getName();
+    const auto joint_id = mj_name2id(model, mjOBJ_JOINT, joint_name.c_str());
+    if (model->jnt_type[joint_id] == mjtJoint::mjJNT_SLIDE || model->jnt_type[joint_id] == mjtJoint::mjJNT_HINGE)
+    {
+      joint_num++;
+      float lower, upper;
+      int hasLimits;
+      if (model->jnt_limited[joint_id])
+      {
+        lower = model->jnt_range[2 * joint_id];
+        upper = model->jnt_range[2 * joint_id + 1];
+        hasLimits = 1;
+      }
+      else
+      {
+        hasLimits = 0;
+      }
+      if (hasLimits)
+      {
+        lb(joint_num - 1) = lower;
+        ub(joint_num - 1) = upper;
+      }
+      else
+      {
+        lb(joint_num - 1) = std::numeric_limits<float>::lowest();
+        ub(joint_num - 1) = std::numeric_limits<float>::max();
+      }
+      spdlog::debug("IK Using joint {} {} {}", joint_name, lb(joint_num - 1), ub(joint_num - 1));
+    }
+  }
+}
+
+void TRAC_IK::initialize_urdf(const std::string& base_link, const std::string& tip_link, const std::string& filename) {
+
+  const urdf::ModelInterfaceSharedPtr robot_model = urdf::parseURDFFile(filename);
+
+  spdlog::debug("Reading joints and links from URDF");
 
   KDL::Tree tree;
 
-  if (!kdl_parser::treeFromUrdfModel(robot_model, tree))
-    ROS_FATAL("Failed to extract kdl tree from xml robot description");
+  if (!kdl_parser::treeFromUrdfModel(*robot_model, tree))
+    spdlog::error("Failed to extract kdl tree from urdf file {}", filename);
 
   if (!tree.getChain(base_link, tip_link, chain))
-    ROS_FATAL("Couldn't find chain %s to %s", base_link.c_str(), tip_link.c_str());
+    spdlog::error("Couldn't find chain {} to {}", base_link, tip_link);
 
   std::vector<KDL::Segment> chain_segs = chain.segments;
 
@@ -88,7 +186,7 @@ TRAC_IK::TRAC_IK(const std::string& base_link, const std::string& tip_link, cons
   uint joint_num = 0;
   for (unsigned int i = 0; i < chain_segs.size(); ++i)
   {
-    joint = robot_model.getJoint(chain_segs[i].getJoint().getName());
+    joint = robot_model->getJoint(chain_segs[i].getJoint().getName());
     if (joint->type != urdf::Joint::UNKNOWN && joint->type != urdf::Joint::FIXED)
     {
       joint_num++;
@@ -122,25 +220,11 @@ TRAC_IK::TRAC_IK(const std::string& base_link, const std::string& tip_link, cons
         lb(joint_num - 1) = std::numeric_limits<float>::lowest();
         ub(joint_num - 1) = std::numeric_limits<float>::max();
       }
-      ROS_DEBUG_STREAM_NAMED("trac_ik", "IK Using joint " << joint->name << " " << lb(joint_num - 1) << " " << ub(joint_num - 1));
+      spdlog::debug("IK Using joint {} {} {}", joint->name, lb(joint_num - 1), ub(joint_num - 1));
     }
   }
-
-  initialize();
 }
 
-
-TRAC_IK::TRAC_IK(const KDL::Chain& _chain, const KDL::JntArray& _q_min, const KDL::JntArray& _q_max, double _maxtime, double _eps, SolveType _type):
-  initialized(false),
-  chain(_chain),
-  lb(_q_min),
-  ub(_q_max),
-  eps(_eps),
-  maxtime(_maxtime),
-  solvetype(_type)
-{
-  initialize();
-}
 
 void TRAC_IK::initialize()
 {
@@ -233,13 +317,13 @@ bool TRAC_IK::runSolver(T1& solver, T2& other_solver,
   double fulltime = maxtime;
   KDL::JntArray seed = q_init;
 
-  boost::posix_time::time_duration timediff;
+  std::chrono::duration<double> timediff;
   double time_left;
 
   while (true)
   {
-    timediff = boost::posix_time::microsec_clock::local_time() - start_time;
-    time_left = fulltime - timediff.total_nanoseconds() / 1000000000.0;
+    timediff = std::chrono::high_resolution_clock::now() - start_time;
+    time_left = fulltime - timediff.count();
 
     if (time_left <= 0)
       break;
@@ -417,12 +501,12 @@ int TRAC_IK::CartToJnt(const KDL::JntArray &q_init, const KDL::Frame &p_in, KDL:
 
   if (!initialized)
   {
-    ROS_ERROR("TRAC-IK was not properly initialized with a valid chain or limits.  IK cannot proceed");
+    spdlog::error("TRAC-IK was not properly initialized with a valid chain or limits.  IK cannot proceed");
     return -1;
   }
 
 
-  start_time = boost::posix_time::microsec_clock::local_time();
+  start_time = std::chrono::high_resolution_clock::now();
 
   nl_solver->reset();
   iksolver->reset();
@@ -468,4 +552,16 @@ TRAC_IK::~TRAC_IK()
   if (task2.joinable())
     task2.join();
 }
+
+KDL::Frame TRAC_IK::JntToCart(const KDL::JntArray &q_in) const {
+  KDL::Frame p_out;
+  nl_solver->fksolver.JntToCart(q_in, p_out);
+  return p_out;
 }
+
+std::vector<KDL::Frame> TRAC_IK::JntToCartFrames(const KDL::JntArray &q_in) const {
+  std::vector<KDL::Frame> p_out(nl_solver->chain.getNrOfSegments());
+  nl_solver->fksolver.JntToCart(q_in, p_out);
+  return p_out;
+}
+} // namespace TRAC_IK
