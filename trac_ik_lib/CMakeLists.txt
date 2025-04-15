@@ -1,6 +1,22 @@
 cmake_minimum_required(VERSION 3.12)
 project(trac_ik_lib)
 
+# Get version from version.hpp
+file(READ pixi.toml version_hpp)
+if(NOT version_hpp MATCHES "version = \"([0-9]+)\\.([0-9]+)\\.([0-9]+)\"")
+  message(FATAL_ERROR "Cannot get TRAC_IK_VERSION from pixi.toml")
+endif()
+
+# Use math to skip leading zeros if any.
+math(EXPR CPACK_PACKAGE_VERSION_MAJOR ${CMAKE_MATCH_1})
+math(EXPR CPACK_PACKAGE_VERSION_MINOR ${CMAKE_MATCH_2})
+math(EXPR CPACK_PACKAGE_VERSION_PATCH ${CMAKE_MATCH_3})
+# cmake-lint: disable=C0103
+set(${PROJECT_NAME}_VERSION
+    "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}"
+)
+message(STATUS "${PROJECT_NAME} version: ${${PROJECT_NAME}_VERSION}")
+
 include(GNUInstallDirs)
 
 # Fix issue with pixi not being able to find python in github actions
@@ -55,19 +71,23 @@ find_package(spdlog REQUIRED)
 find_package(orocos_kdl REQUIRED)
 find_package(urdfdom REQUIRED)
 
-add_library(trac_ik SHARED src/kdl_tl.cpp src/nlopt_ik.cpp src/trac_ik.cpp src/kdl_parser.cpp)
+add_library(
+  trac_ik SHARED src/kdl_tl.cpp src/nlopt_ik.cpp src/trac_ik.cpp
+                 src/kdl_parser.cpp
+)
 target_link_libraries(
-  trac_ik
-  PUBLIC Eigen3::Eigen
-         NLopt::nlopt
-         spdlog::spdlog
-         orocos-kdl
-         urdfdom::urdf_parser
-         urdfdom::urdfdom_model)
+  trac_ik PUBLIC Eigen3::Eigen NLopt::nlopt spdlog::spdlog orocos-kdl
+                 urdfdom::urdf_parser urdfdom::urdfdom_model
+)
 target_compile_features(trac_ik PRIVATE cxx_std_20)
 target_include_directories(
   trac_ik PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-                 $<INSTALL_INTERFACE:include>)
+                 $<INSTALL_INTERFACE:include>
+)
+set_target_properties(
+  trac_ik PROPERTIES VERSION ${${PROJECT_NAME}_VERSION}
+                     SOVERSION ${CPACK_PACKAGE_VERSION_MAJOR}
+)
 
 pybind11_add_module(trac_ik_py src/trac_ik_py.cpp)
 target_link_libraries(trac_ik_py PRIVATE trac_ik)
@@ -83,8 +103,51 @@ message(STATUS "Python site-packages directory: " ${PYTHON_SITE_PACKAGES})
 
 install(TARGETS trac_ik_py LIBRARY DESTINATION ${PYTHON_SITE_PACKAGES})
 
+include(CMakePackageConfigHelpers)
+include(GNUInstallDirs)
+# Generate the version, config and target files into the build directory.
+write_basic_package_version_file(
+  ${PROJECT_NAME}-config-version.cmake
+  VERSION ${PROJECT_NAME}_VERSION
+  COMPATIBILITY AnyNewerVersion
+)
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/${PROJECT_NAME}-config.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+)
+
+install(DIRECTORY include/
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
 install(
   TARGETS trac_ik
+  COMPONENT ${PROJECT_NAME}
+  EXPORT ${PROJECT_NAME}-targets
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR})
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}
+)
+
+# Use a namespace because CMake provides better diagnostics for namespaced
+# imported targets.
+export(
+  TARGETS trac_ik
+  NAMESPACE ${PROJECT_NAME}::
+  FILE ${PROJECT_NAME}-targets.cmake
+)
+
+# Install version, config and target files.
+install(
+  FILES ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config-version.cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+  COMPONENT ${PROJECT_NAME}
+)
+install(
+  EXPORT ${PROJECT_NAME}-targets
+  NAMESPACE ${PROJECT_NAME}::
+  COMPONENT ${PROJECT_NAME}
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+)
