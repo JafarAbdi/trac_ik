@@ -1,0 +1,19 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 25e5061..80a2c8e 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -98,14 +98,6 @@ install(FILES ${CMAKE_BINARY_DIR}/${pkg_conf_file}
+   DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig/ COMPONENT pkgconfig)
+ 
+ 
+-# Add uninstall target
+-# Ref: http://www.cmake.org/Wiki/CMake_FAQ#Can_I_do_.22make_uninstall.22_with_CMake.3F
+-configure_file(
+-  "${PROJECT_SOURCE_DIR}/cmake/uninstall.cmake.in"
+-  "${PROJECT_BINARY_DIR}/uninstall.cmake" IMMEDIATE @ONLY)
+-add_custom_target(uninstall
+-  "${CMAKE_COMMAND}" -P "${PROJECT_BINARY_DIR}/uninstall.cmake")
+-
+ message(STATUS "Configuration successful. Type make to compile urdfdom")
+ 
+ SET_DIRECTORY_PROPERTIES(PROPERTIES
