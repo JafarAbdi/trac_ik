@@ -1,0 +1,22 @@
+[project]
+name            = "trac-ik-lib"
+version         = "0.1.0"
+description     = "Add your description here"
+readme          = "README.md"
+authors         = [{ name = "JafarAbdi", email = "jafar.uruc@gmail.com" }]
+requires-python = ">=3.11"
+dependencies    = []
+
+[project.scripts]
+trac-ik-lib = "trac_ik_lib:main"
+
+[tool.scikit-build]
+minimum-version = "build-system.requires"
+build-dir       = "build/{wheel_tag}"
+
+[build-system]
+requires      = ["scikit-build-core>=0.10", "pybind11", "cmeel-tinyxml2", "cmeel-urdfdom-headers"]
+build-backend = "scikit_build_core.build"
+
+[dependency-groups]
+dev = ["cibuildwheel>=3.0.1"]
